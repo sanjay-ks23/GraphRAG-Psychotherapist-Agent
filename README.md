@@ -47,7 +47,7 @@ PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 - Memory-efficient model loading
 
 
-## Installation
+## Installatio
 
 **Prerequisites**
 - Python 3.8+
