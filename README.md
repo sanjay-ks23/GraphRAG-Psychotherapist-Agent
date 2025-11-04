@@ -1,6 +1,6 @@
 # Graph RAG Psychotherapy Chatbot
 
-A culturally-aware therapeutic chatbot for Indian children and adolescents using Graph RAG architecture with Gemma 3n E2B-it model
+A culturally-aware therapeutic chatbot for Indian children and adolescents using Graph RAG architecture with Gemma 3n E2B-it model.
 
 ## Overview
 
