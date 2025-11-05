@@ -4,7 +4,7 @@ A culturally-aware therapeutic chatbot for Indian children and adolescents using
 
 ## Overview
 
-This system is built on knowledge graphs from therapy literature to understand relationships between therapeutic concepts
+This system is built on knowledge graphs from therapy literature to understand relationships between therapeutic concepts.
 
 
 **Module Structure**
