@@ -1,0 +1,5 @@
+node_id,node_type,text,language
+1,Emotion,anxiety,en
+2,Emotion,sadness,en
+3,CopingStrategy,deep_breathing,en
+4,TriggerEvent,exam_stress,en
