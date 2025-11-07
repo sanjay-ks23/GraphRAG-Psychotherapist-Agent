@@ -414,25 +414,6 @@ NEO4J_PASSWORD=newpassword
 3. Enable connection pooling
 4. Monitor with `docker stats`
 
-## Support & Contributing
-
-**Issues:** Report bugs and feature requests via GitHub Issues
-
-**Contributing:**
-1. Fork repository
-2. Create feature branch
-3. Make changes with tests
-4. Submit pull request
-
-**Code Style:**
-- Follow PEP 8
-- Use type hints
-- Add docstrings
-- Run `black .` before committing
-
-## License
-
-MIT License - See LICENSE file for details
 
 ## Acknowledgments
 
@@ -445,7 +426,3 @@ Built with:
 - Prometheus - Monitoring
 
 ---
-
-**Version:** 1.0.0  
-**Last Updated:** 2024  
-**Maintainer:** Sahyog Team
