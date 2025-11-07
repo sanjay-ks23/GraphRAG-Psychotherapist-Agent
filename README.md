@@ -1,4 +1,4 @@
-# Sahyog - Psychotherapy Chatbot
+# Graph Rag Psychotherapy Chatbot
 
 Production-grade Graph-RAG psychotherapy chatbot for children and adolescents powered by GPT-5, Milvus vector store, and Neo4j knowledge graph.
 
@@ -266,7 +266,7 @@ docker-compose up -d
 ```
 
 ### Docker Compose Services
-- `sahyog`: Main FastAPI application
+- `MAIN APPLICATION`: Main FastAPI application
 - `milvus`: Vector database
 - `neo4j`: Knowledge graph
 - `redis`: Cache layer
