@@ -1,6 +1,6 @@
 # Graph Rag Psychotherapy Chatbot
 
-Production-grade Graph-RAG psychotherapy chatbot for children and adolescents powered by GPT-5, Milvus vector store, and Neo4j knowledge graph.
+Graph-RAG psychotherapy chatbot for children and adolescents powered by GPT-5, Milvus vector store, and Neo4j knowledge graph.
 
 ## Architecture
 
