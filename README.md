@@ -174,7 +174,7 @@ POST /v1/feedback
 ## Project Structure
 
 ```
-sahyog/
+
 ├── app.py                      # Main FastAPI application
 ├── requirements.txt            # Python dependencies
 ├── Dockerfile                  # Container definition
