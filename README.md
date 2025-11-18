@@ -1,6 +1,139 @@
-# Graph Rag Psychotherapy Chatbot
+# Graph RAG - Production-Grade AI Agent
 
-Graph-RAG psychotherapy chatbot for children and adolescents powered by GPT-5, Milvus vector store, and Neo4j knowledge graph.
+This project is a state-of-the-art, production-grade Retrieval-Augmented Generation (RAG) application. It leverages a powerful combination of a Knowledge Graph (Neo4j) and a Vector Store (Milvus) to provide rich, context-aware responses to user queries. The entire pipeline is orchestrated as a stateful graph using **LangGraph**, and it is built to be deployed on **AWS**.
+
+## Key Features
+
+- **Hybrid Retrieval**: Combines semantic search over unstructured data (via Milvus) with structured, relational queries over a knowledge graph (via Neo4j) for superior context.
+- **Stateful, Modular Pipeline**: Uses **LangGraph** to define the RAG process as a modular and extensible graph of operations.
+- **Production-Ready**: Built with a production-first mindset, featuring:
+    - **Centralized Configuration**: Secure and flexible settings management with Pydantic.
+    - **Asynchronous API**: High-performance FastAPI server with `async` endpoints.
+    - **Containerized**: Fully containerized with Docker and Docker Compose for easy local setup and scalable deployment.
+    - **Cloud Native**: Designed for AWS, with configurable support for services like Amazon Bedrock.
+- **Pluggable LLM Backend**: Easily switch between LLM providers like **Amazon Bedrock** and **OpenAI** through simple configuration changes.
+
+## Tech Stack
+
+- **Orchestration**: [LangGraph](https://github.com/langchain-ai/langgraph)
+- **Web Framework**: [FastAPI](https://fastapi.tiangolo.com/)
+- **Knowledge Graph**: [Neo4j](https://neo4j.com/)
+- **Vector Store**: [Milvus](https://milvus.io/)
+- **LLM & Embedding Provider**: [Amazon Bedrock](https://aws.amazon.com/bedrock/) (default), [OpenAI](https://openai.com/)
+- **Containerization**: [Docker](https://www.docker.com/) & [Docker Compose](https://docs.docker.com/compose/)
+- **Deployment Target**: [AWS](https://aws.amazon.com/) (ECS, EKS)
+
+## System Architecture
+
+The application is designed around a central `StateGraph` defined with LangGraph. This graph orchestrates the flow of data from the user's query to the final generated response.
+
+1.  **API Layer (`main.py`)**: A FastAPI server receives the user's query.
+2.  **Graph Orchestrator (`graph_rag/graph/graph.py`)**: The request is passed to a `runnable_graph` instance.
+3.  **Graph Execution**: The graph proceeds through a series of nodes:
+    - **Query Rewriting**: The initial query is refined for better retrieval.
+    - **Hybrid Retrieval**:
+        - **Vector Store Retriever**: The query is embedded, and relevant document chunks are retrieved from Milvus.
+        - **Graph Retriever**: Entities are extracted from the query, and related sub-graphs are fetched from Neo4j.
+    - **Context Aggregation**: The retrieved data from both sources is combined to form a rich context.
+    - **Response Generation**: The context and query are passed to the configured LLM (e.g., via Amazon Bedrock) to generate a response.
+    - **Streaming**: The response is streamed back to the user in real-time.
+
+## Getting Started
+
+### Prerequisites
+
+- Docker and Docker Compose
+- Python 3.10+
+- An AWS account with access to Amazon Bedrock (if using the default configuration).
+
+### 1. Configuration
+
+The entire application is configured via environment variables.
+
+First, copy the example `.env.example` file to `.env`:
+
+```bash
+cp .env.example .env
+```
+
+Now, edit the `.env` file with your specific settings.
+
+```dotenv
+# .env
+
+# --- LLM and Embedding Model Configuration ---
+# Options: 'aws_bedrock' or 'openai'
+MODEL_PROVIDER="aws_bedrock"
+
+# For AWS Bedrock
+AWS_REGION="us-east-1"
+AWS_ACCESS_KEY_ID="YOUR_AWS_ACCESS_KEY"
+AWS_SECRET_ACCESS_KEY="YOUR_AWS_SECRET_KEY"
+LLM_MODEL_ID="anthropic.claude-3-sonnet-20240229-v1:0"
+EMBEDDING_MODEL_ID="amazon.titan-embed-text-v2:0"
+
+# For OpenAI (if used)
+# OPENAI_API_KEY="YOUR_OPENAI_KEY"
+# LLM_MODEL_ID="gpt-4o"
+# EMBEDDING_MODEL_ID="text-embedding-3-large"
+
+# --- Database Configuration ---
+# These are the defaults for the local docker-compose setup
+NEO4J_URI="bolt://localhost:7687"
+NEO4J_USER="neo4j"
+NEO4J_PASSWORD="password"
+NEO4J_DATABASE="neo4j"
+
+MILVUS_HOST="localhost"
+MILVUS_PORT=19530
+```
+
+### 2. Running Locally with Docker Compose
+
+This is the easiest way to get the entire stack (App, Neo4j, Milvus) running.
+
+```bash
+docker-compose up --build
+```
+
+The API will be available at `http://localhost:8000`.
+
+### 3. Data Ingestion
+
+After the services are running, you need to populate the databases. The project includes a sample CSV file at `data/seed_kg.csv`.
+
+Run the ingestion script:
+
+```bash
+docker-compose exec app python scripts/ingest_data.py
+```
+
+This will:
+- Create graph relationships in Neo4j.
+- Generate embeddings for the data and store them in Milvus.
+
+### 4. Using the API
+
+You can interact with the API via the automatically generated docs at `http://localhost:8000/docs` or by sending a POST request to the `/chat` endpoint.
+
+**Example using `curl`:**
+
+```bash
+curl -X POST http://localhost:8000/chat \
+-H "Content-Type: application/json" \
+-d '{"query": "Tell me about the relationships in the graph."}'
+```
+
+## Deployment on AWS
+
+1.  **Build and Push Docker Image**: Build the Docker image and push it to a container registry like Amazon ECR.
+2.  **Set up Databases**:
+    - **Neo4j**: Deploy a Neo4j instance, either on EC2 or using a managed service.
+    - **Milvus**: Deploy a Milvus cluster, typically on a Kubernetes cluster (EKS).
+3.  **Deploy Application**: Deploy the application container to a service like Amazon ECS or EKS.
+4.  **Configure Environment**: Ensure all the environment variables in the `.env` file are correctly set in the execution environment of your container (e.g., as ECS task definition environment variables or Kubernetes secrets).
+
+
 
 ## Architecture
 

@@ -1,9 +1,0 @@
-"""Centralized logging configuration"""
-from __future__ import annotations
-import logging
-
-def configure_logging():
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-    )

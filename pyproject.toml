@@ -1,0 +1,29 @@
+[tool.poetry]
+name = "graph-rag"
+version = "1.0.0"
+description = "Production-grade Graph RAG application using LangGraph, Neo4j, Milvus, and AWS."
+authors = ["Gemini"]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+fastapi = "*"
+uvicorn = {extras = ["standard"], version = "*"}
+pydantic = "*"
+pydantic-settings = "*"
+python-dotenv = "*"
+neo4j = "*"
+pymilvus = "*"
+langchain = "*"
+langgraph = "*"
+langchain-community = "*"
+langchain-aws = "*"
+boto3 = "*"
+fastapi-cors = "*"
+httpx = "*"
+sshtunnel = "*"
+psycopg2-binary = "*"
+langchain-openai = "*"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
