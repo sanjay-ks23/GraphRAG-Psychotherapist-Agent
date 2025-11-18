@@ -16,3 +16,5 @@ fastapi-cors
 httpx
 sshtunnel
 psycopg2-binary
+gunicorn
+slowapi

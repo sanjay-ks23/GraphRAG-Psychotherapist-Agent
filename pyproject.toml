@@ -23,6 +23,8 @@ httpx = "*"
 sshtunnel = "*"
 psycopg2-binary = "*"
 langchain-openai = "*"
+gunicorn = "*"
+slowapi = "*"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

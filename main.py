@@ -1,8 +1,11 @@
 import logging
-from fastapi import FastAPI, Depends, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi import FastAPI, Depends, HTTPException, Request
+from fastapi.responses import StreamingResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
 from graph_rag.schemas import ChatRequest
 from graph_rag.graph.graph import runnable_graph
@@ -12,6 +15,9 @@ from graph_rag.settings import settings
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+# --- Rate Limiting Setup ---
+limiter = Limiter(key_func=get_remote_address, default_limits=[settings.RATE_LIMIT])
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -33,6 +39,10 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+# --- Rate Limiting Middleware ---
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
 # --- CORS Configuration ---
 app.add_middleware(
     CORSMiddleware,
@@ -52,7 +62,8 @@ def read_root():
     return {"status": "ok"}
 
 @app.post("/chat", summary="Handle a chat request and stream the response")
-async def chat_endpoint(request: ChatRequest):
+@limiter.limit(settings.RATE_LIMIT)
+async def chat_endpoint(request: ChatRequest, req: Request):
     """
     Endpoint to handle a chat message.
     It invokes the RAG graph and streams the response back to the client.
