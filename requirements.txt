@@ -18,3 +18,5 @@ sshtunnel
 psycopg2-binary
 gunicorn
 slowapi
+celery
+redis

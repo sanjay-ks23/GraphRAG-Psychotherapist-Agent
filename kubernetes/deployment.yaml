@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: graph-rag-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: graph-rag
+  template:
+    metadata:
+      labels:
+        app: graph-rag
+    spec:
+      containers:
+      - name: graph-rag
+        image: your-docker-registry/graph-rag:latest # <-- IMPORTANT: Change this to your image path
+        ports:
+        - containerPort: 80
+        envFrom:
+        - configMapRef:
+            name: graph-rag-config
+        # --- Production Best Practice: Resource Limits ---
+        # These are example values. You MUST tune these based on load testing.
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"

@@ -13,19 +13,25 @@ COPY poetry.lock pyproject.toml ./
 RUN poetry config virtualenvs.in-project true && \
     poetry install --no-dev --no-root
 
-# --- Stage 2: Final application image ---
-FROM python:3.11-slim
 
-WORKDIR /app
+# --- Stage 2: Final application image ---
+FROM python:3.11-slim as final
+
+# Create a non-root user
+RUN useradd --create-home appuser
+WORKDIR /home/appuser/app
 
 # Copy the virtual environment from the builder stage
 COPY --from=builder /app/.venv ./.venv
 
-# Activate the virtual environment
-ENV PATH="/app/.venv/bin:$PATH"
+# Copy the application source code and configuration
+COPY --chown=appuser:appuser . .
 
-# Copy the application source code
-COPY . .
+# Activate the virtual environment
+ENV PATH="/home/appuser/app/.venv/bin:$PATH"
+
+# Switch to the non-root user
+USER appuser
 
 # Expose the port the app runs on
 EXPOSE 80

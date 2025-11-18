@@ -46,6 +46,7 @@ class Settings(BaseSettings):
     # --- API Server Configuration ---
     API_HOST: str = Field(default="0.0.0.0", description="Host for the API server.")
     API_PORT: int = Field(default=8000, description="Port for the API server.")
+    RATE_LIMIT: str = Field(default="100/minute", description="Rate limit for API requests.")
 
 
 # Instantiate the settings
