@@ -1,4 +1,4 @@
-version: '3.8'
+  milvus_data:
 
 services:
   app:
@@ -10,6 +10,7 @@ services:
     depends_on:
       - neo4j
       - milvus
+      - redis
     volumes:
       - .:/app
 
@@ -21,7 +22,6 @@ services:
       - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf
     depends_on:
       - app
-
 
   neo4j:
     image: neo4j:5
@@ -44,6 +44,24 @@ services:
       - "COMMON_STORAGETYPE=local"
     volumes:
       - milvus_data:/var/lib/milvus
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: celery -A graph_rag.celery worker --loglevel=info
+    env_file:
+      - .env
+    depends_on:
+      - redis
+      - app
+    volumes:
+      - .:/app
 
 volumes:
   neo4j_data:

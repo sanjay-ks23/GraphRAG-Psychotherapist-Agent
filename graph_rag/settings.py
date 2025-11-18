@@ -48,6 +48,10 @@ class Settings(BaseSettings):
     API_PORT: int = Field(default=8000, description="Port for the API server.")
     RATE_LIMIT: str = Field(default="100/minute", description="Rate limit for API requests.")
 
+    # --- Celery Configuration ---
+    CELERY_BROKER_URL: str = Field(default="redis://localhost:6379/0", description="Celery broker URL.")
+    CELERY_RESULT_BACKEND: str = Field(default="redis://localhost:6379/0", description="Celery result backend URL.")
+
 
 # Instantiate the settings
 settings = Settings()

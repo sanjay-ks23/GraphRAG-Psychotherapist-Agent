@@ -20,3 +20,4 @@ gunicorn
 slowapi
 celery
 redis
+python-json-logger

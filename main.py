@@ -1,4 +1,5 @@
 import logging
+from pythonjsonlogger import jsonlogger
 from fastapi import FastAPI, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -8,12 +9,23 @@ from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 
 from graph_rag.schemas import ChatRequest
+from graph_rag.services.redis_service import cache_llm_response
 from graph_rag.graph.graph import runnable_graph
 from graph_rag.services.neo4j_service import Neo4jService
 from graph_rag.settings import settings
 
-# Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+# --- JSON Logging Configuration ---
+# Remove existing handlers
+for handler in logging.root.handlers[:]:
+    logging.root.removeHandler(handler)
+
+# Add a new handler with a JSON formatter
+logHandler = logging.StreamHandler()
+formatter = jsonlogger.JsonFormatter('%(asctime)s %(name)s %(levelname)s %(message)s')
+logHandler.setFormatter(formatter)
+logging.root.addHandler(logHandler)
+logging.root.setLevel(logging.INFO)
+
 logger = logging.getLogger(__name__)
 
 # --- Rate Limiting Setup ---
@@ -63,10 +75,12 @@ def read_root():
 
 @app.post("/chat", summary="Handle a chat request and stream the response")
 @limiter.limit(settings.RATE_LIMIT)
+@cache_llm_response
 async def chat_endpoint(request: ChatRequest, req: Request):
     """
     Endpoint to handle a chat message.
     It invokes the RAG graph and streams the response back to the client.
+    Caches the full response to improve performance on repeated queries.
     """
     query = request.get("query")
     if not query:
