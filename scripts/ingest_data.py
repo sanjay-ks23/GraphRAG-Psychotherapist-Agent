@@ -2,7 +2,7 @@ import logging
 import asyncio
 import pandas as pd
 from graph_rag.services.llm_service import get_embedding_model
-from graph_rag.services.milvus_service import get_milvus_service
+from graph_rag.services.weaviate_service import get_weaviate_service
 from graph_rag.services.neo4j_service import Neo4jService
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 async def ingest_data():
     """
-    Main function to ingest data from a CSV file into Neo4j and Milvus.
+    Main function to ingest data from a CSV file into Neo4j and Weaviate.
     """
     logger.info("Starting data ingestion process...")
 
@@ -24,7 +24,7 @@ async def ingest_data():
 
     # --- 2. Initialize Services ---
     embedding_model = get_embedding_model()
-    milvus_service = get_milvus_service()
+    weaviate_service = get_weaviate_service()
     
     # --- 3. Ingest into Neo4j ---
     logger.info("Ingesting data into Neo4j...")
@@ -43,8 +43,8 @@ async def ingest_data():
         )
     logger.info("Finished ingesting data into Neo4j.")
 
-    # --- 4. Ingest into Milvus ---
-    logger.info("Ingesting data into Milvus...")
+    # --- 4. Ingest into Weaviate ---
+    logger.info("Ingesting data into Weaviate...")
     # We will create embeddings for the 'source' nodes as an example
     texts_to_embed = df["source"].unique().tolist()
     
@@ -54,10 +54,10 @@ async def ingest_data():
         # The chunk_id can be the text itself or a more stable identifier
         chunk_ids = texts_to_embed
         
-        milvus_service.insert(vectors=embeddings, chunk_ids=chunk_ids)
-        logger.info(f"Successfully inserted {len(embeddings)} embeddings into Milvus.")
+        weaviate_service.insert(vectors=embeddings, chunk_ids=chunk_ids, contents=texts_to_embed)
+        logger.info(f"Successfully inserted {len(embeddings)} embeddings into Weaviate.")
     else:
-        logger.warning("No unique texts to embed for Milvus.")
+        logger.warning("No unique texts to embed for Weaviate.")
 
     logger.info("Data ingestion process completed.")
 

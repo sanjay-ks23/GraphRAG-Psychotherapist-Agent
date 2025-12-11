@@ -15,11 +15,12 @@ data:
   NEO4J_USER: "neo4j"
   NEO4J_DATABASE: "neo4j"
 
-  # --- Milvus Vector Store Configuration ---
-  # In production, use a managed or production-grade Milvus cluster
-  MILVUS_HOST: "your-milvus-service"
-  MILVUS_PORT: "19530"
-  MILVUS_COLLECTION: "graph_rag_collection"
+  # --- Weaviate Vector Store Configuration ---
+  # In production, use a managed or production-grade Weaviate cluster
+  WEAVIATE_HOST: "your-weaviate-service"
+  WEAVIATE_PORT: "8080"
+  WEAVIATE_GRPC_PORT: "50051"
+  WEAVIATE_CLASS_NAME: "GraphRAGDocument"
   EMBEDDING_DIM: "1024"
 
   # --- Gunicorn Configuration ---
@@ -28,3 +29,4 @@ data:
 
   # --- API Configuration ---
   RATE_LIMIT: "1000/minute"
+
