@@ -175,12 +175,6 @@ def create_gradio_app() -> gr.Blocks:
     """
     with gr.Blocks(
         title=TITLE,
-        css=CUSTOM_CSS,
-        theme=gr.themes.Soft(
-            primary_hue="purple",
-            secondary_hue="blue",
-            neutral_hue="slate",
-        )
     ) as app:
         # Header
         gr.HTML(DESCRIPTION)
@@ -194,10 +188,6 @@ def create_gradio_app() -> gr.Blocks:
             title=TITLE,
             description="Share what's on your mind. I'm here to provide supportive guidance and information.",
             examples=EXAMPLES,
-            retry_btn="🔄 Retry",
-            undo_btn="↩️ Undo",
-            clear_btn="🗑️ Clear",
-            submit_btn="Send 💬",
         )
         
         # Footer with additional resources
@@ -225,5 +215,5 @@ if __name__ == "__main__":
         server_name="0.0.0.0",
         server_port=7860,
         share=False,
-        show_api=False,
     )
+
