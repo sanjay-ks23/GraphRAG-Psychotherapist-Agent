@@ -21,3 +21,4 @@ slowapi
 celery
 redis
 python-json-logger
+gradio>=5.0.0
