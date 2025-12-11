@@ -3,12 +3,35 @@ from ..schemas import GraphState
 from ..services.llm_service import get_chat_model, get_embedding_model
 from ..services.weaviate_service import get_weaviate_service
 from ..services.neo4j_service import Neo4jService
+from ..services.safety_service import get_safety_service, RiskLevel
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers.string import StrOutputParser
 
 logger = logging.getLogger(__name__)
 
 # --- Node Functions ---
+
+async def safety_prefilter(state: GraphState) -> GraphState:
+    """
+    Checks the user's query for safety concerns before processing.
+    If critical risk is detected, returns an immediate safe response.
+    """
+    logger.info("Executing node: safety_prefilter")
+    query = state["query"]
+    
+    safety_service = get_safety_service()
+    result = safety_service.analyze_message(query)
+    
+    # If critical or high risk, provide immediate safe response
+    if result.requires_escalation and result.safe_response:
+        logger.warning(f"Safety escalation triggered: {result.risk_level.value}")
+        return {
+            "response": [result.safe_response],
+            "safety_escalated": True,
+            "risk_level": result.risk_level.value
+        }
+    
+    return {"safety_escalated": False, "risk_level": result.risk_level.value}
 
 async def rewrite_query(state: GraphState) -> GraphState:
     """
