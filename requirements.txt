@@ -5,7 +5,7 @@ pydantic-settings
 requests
 python-dotenv
 neo4j
-pymilvus
+weaviate-client
 langchain
 langgraph
 langchain-community

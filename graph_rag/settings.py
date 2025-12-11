@@ -37,10 +37,11 @@ class Settings(BaseSettings):
     NEO4J_PASSWORD: str = Field(default="password", description="Neo4j password.")
     NEO4J_DATABASE: str = Field(default="neo4j", description="Neo4j database name.")
 
-    # --- Milvus Vector Store Configuration ---
-    MILVUS_HOST: str = Field(default="localhost", description="Milvus host.")
-    MILVUS_PORT: int = Field(default=19530, description="Milvus port.")
-    MILVUS_COLLECTION: str = Field(default="graph_rag_collection", description="Milvus collection name.")
+    # --- Weaviate Vector Store Configuration ---
+    WEAVIATE_HOST: str = Field(default="localhost", description="Weaviate host.")
+    WEAVIATE_PORT: int = Field(default=8080, description="Weaviate HTTP port.")
+    WEAVIATE_GRPC_PORT: int = Field(default=50051, description="Weaviate gRPC port.")
+    WEAVIATE_CLASS_NAME: str = Field(default="GraphRAGDocument", description="Weaviate class name.")
     EMBEDDING_DIM: int = Field(default=1024, description="Dimension of the embedding model.")
 
     # --- API Server Configuration ---

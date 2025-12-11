@@ -1,7 +1,7 @@
 import logging
 from ..schemas import GraphState
 from ..services.llm_service import get_chat_model, get_embedding_model
-from ..services.milvus_service import get_milvus_service
+from ..services.weaviate_service import get_weaviate_service
 from ..services.neo4j_service import Neo4jService
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers.string import StrOutputParser
@@ -31,22 +31,22 @@ async def rewrite_query(state: GraphState) -> GraphState:
 
 async def retrieve_from_vectorstore(state: GraphState) -> GraphState:
     """
-    Retrieves relevant documents from the Milvus vector store.
+    Retrieves relevant documents from the Weaviate vector store.
     """
     logger.info("Executing node: retrieve_from_vectorstore")
     query = state["query"]
     
     embedding_model = get_embedding_model()
-    milvus = get_milvus_service()
+    weaviate = get_weaviate_service()
     
     # Embed the query
     query_embedding = embedding_model.embed_query(query)
     
-    # Search in Milvus
-    results = milvus.search(query_vector=query_embedding, top_k=5)
+    # Search in Weaviate
+    results = weaviate.search(query_vector=query_embedding, top_k=5)
     
     # Process results
-    retrieved_docs = [hit.entity.get('chunk_id') for res in results for hit in res]
+    retrieved_docs = [result.get('chunk_id', '') for result in results]
     
     context = state.get("context", "")
     context += "\n\n--- Vector Store Documents ---\n" + "\n".join(retrieved_docs)

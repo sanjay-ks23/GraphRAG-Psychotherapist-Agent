@@ -46,7 +46,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Graph RAG API",
-    description="A production-grade RAG application using LangGraph, Neo4j, and Milvus.",
+    description="A production-grade Hybrid GraphRAG application using LangGraph, Neo4j, and Weaviate for mental wellness support.",
     version="1.0.0",
     lifespan=lifespan
 )
