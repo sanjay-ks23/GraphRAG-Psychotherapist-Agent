@@ -3,14 +3,39 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
     env_file:
       - .env
+    environment:
+      - APP_MODE=api
     depends_on:
       - neo4j
       - weaviate
       - redis
     volumes:
-      - .:/app
+      - .:/home/appuser/app
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8000/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  gradio:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "7860:7860"
+    env_file:
+      - .env
+    environment:
+      - APP_MODE=gradio
+    depends_on:
+      - app
+    volumes:
+      - .:/home/appuser/app
 
   nginx:
     image: nginx:1.25-alpine
@@ -61,9 +86,10 @@ services:
       - redis
       - app
     volumes:
-      - .:/app
+      - .:/home/appuser/app
 
 volumes:
   neo4j_data:
   weaviate_data:
+
 
