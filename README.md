@@ -24,18 +24,6 @@ A production-grade Hybrid GraphRAG architecture for mental wellness support, eng
 - **Containerization**: [Docker](https://www.docker.com/) & [Docker Compose](https://docs.docker.com/compose/)
 - **Deployment Target**: [AWS](https://aws.amazon.com/) (ECS, EKS)
 
-## System Architecture
-
-```
-User (Browser) → FastAPI Gateway → LangGraph Orchestrator → LLM API
-                                          ↓
-                              Hybrid Retrieval (Weaviate + Neo4j)
-                                          ↓
-                              Safety Filters (Pre + Post)
-                                          ↓
-                              Response Streaming (WebSocket)
-```
-
 **Key Components:**
 - **FastAPI**: REST API + WebSocket server
 - **LangGraph**: DAG-based pipeline orchestration
