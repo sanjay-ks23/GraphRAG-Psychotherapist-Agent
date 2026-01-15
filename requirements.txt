@@ -1,24 +1,39 @@
+# Core Framework
 fastapi
 uvicorn[standard]
+gunicorn
 pydantic
 pydantic-settings
-requests
 python-dotenv
-neo4j
-weaviate-client
+
+# LangChain & LangGraph
 langchain
+langchain-core
 langgraph
-langchain-community
 langchain-aws
 langchain-openai
-boto3
-fastapi-cors
-httpx
-sshtunnel
-psycopg2-binary
-gunicorn
-slowapi
-celery
+langchain-community
+
+# Databases
+neo4j
+weaviate-client
 redis
+
+# AWS
+boto3
+
+# Utilities
+httpx
+slowapi
 python-json-logger
+aiofiles
+
+# Document Processing
+pypdf>=4.0.0
+pandas
+
+# MCP Protocol
+mcp>=1.0.0
+
+# UI
 gradio>=5.0.0

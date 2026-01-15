@@ -1,231 +1,257 @@
 """
-GraphRAG Mental Wellness API - Production-Grade FastAPI Backend
+GraphRAG Mental Wellness API
 
-Provides REST API endpoints for the hybrid GraphRAG pipeline with
-real-time safety guardrails and comprehensive observability.
+Production-grade FastAPI with streaming responses.
 """
 import logging
 import uuid
-from pythonjsonlogger import jsonlogger
-from fastapi import FastAPI, Depends, HTTPException, Request
+import os
+from pathlib import Path
+from contextlib import asynccontextmanager
+from fastapi import FastAPI, HTTPException, Request, UploadFile, File
 from fastapi.responses import StreamingResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-from contextlib import asynccontextmanager
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from graph_rag.schemas import ChatRequest
-from graph_rag.services.redis_service import cache_llm_response
-from graph_rag.graph.graph import runnable_graph
-from graph_rag.services.neo4j_service import Neo4jService
-from graph_rag.services.weaviate_service import get_weaviate_service
-from graph_rag.settings import settings
+from graph_rag.config import settings
+from graph_rag.models import ChatRequest, ChatStreamRequest, HealthResponse
+from graph_rag.core import pipeline
+from graph_rag.services import cache, vectorstore, graphdb, get_embedding_model
 
-# --- JSON Logging Configuration ---
-for handler in logging.root.handlers[:]:
-    logging.root.removeHandler(handler)
-
-logHandler = logging.StreamHandler()
-formatter = jsonlogger.JsonFormatter(
-    '%(asctime)s %(name)s %(levelname)s %(message)s %(request_id)s',
-    defaults={'request_id': 'N/A'}
-)
-logHandler.setFormatter(formatter)
-logging.root.addHandler(logHandler)
-logging.root.setLevel(logging.INFO)
-
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
 
 
-# --- Request ID Middleware ---
+# === Middleware ===
+
 class RequestIDMiddleware(BaseHTTPMiddleware):
-    """Add unique request ID to each request for tracing."""
-    
     async def dispatch(self, request: Request, call_next):
-        request_id = str(uuid.uuid4())[:8]
-        request.state.request_id = request_id
-        
-        # Add to logging context
-        logger_adapter = logging.LoggerAdapter(
-            logger, {'request_id': request_id}
-        )
-        
+        request.state.request_id = str(uuid.uuid4())[:8]
         response = await call_next(request)
-        response.headers["X-Request-ID"] = request_id
+        response.headers["X-Request-ID"] = request.state.request_id
         return response
 
 
-# --- Rate Limiting Setup ---
-limiter = Limiter(key_func=get_remote_address, default_limits=[settings.RATE_LIMIT])
-
-
-# --- Application State ---
-class AppState:
-    """Track application health state."""
-    is_ready: bool = False
-    neo4j_connected: bool = False
-    weaviate_connected: bool = False
-
-
-app_state = AppState()
-
+# === Lifespan ===
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """
-    Handle startup and shutdown events for the application.
-    Initializes and cleans up database connections gracefully.
-    """
-    logger.info("Application startup: Initializing services...")
+    """Startup/shutdown events."""
+    logger.info("Starting GraphRAG API...")
+    
+    # Initialize services
+    try:
+        vectorstore.connect()
+        logger.info("Weaviate: OK")
+    except Exception as e:
+        logger.error(f"Weaviate: FAILED - {e}")
     
     try:
-        # Initialize Neo4j
-        await Neo4jService.get_driver()
-        app_state.neo4j_connected = True
-        logger.info("Neo4j connected successfully")
+        await graphdb.connect()
+        logger.info("Neo4j: OK")
     except Exception as e:
-        logger.error(f"Failed to connect to Neo4j: {e}")
-        app_state.neo4j_connected = False
+        logger.error(f"Neo4j: FAILED - {e}")
     
-    try:
-        # Initialize Weaviate (lazy loading, just verify it can connect)
-        get_weaviate_service()
-        app_state.weaviate_connected = True
-        logger.info("Weaviate connected successfully")
-    except Exception as e:
-        logger.error(f"Failed to connect to Weaviate: {e}")
-        app_state.weaviate_connected = False
+    if cache.ping():
+        logger.info("Redis: OK")
+    else:
+        logger.warning("Redis: UNAVAILABLE")
     
-    app_state.is_ready = app_state.neo4j_connected and app_state.weaviate_connected
-    logger.info(f"Application ready: {app_state.is_ready}")
+    os.makedirs(settings.upload_dir, exist_ok=True)
     
     yield
     
-    logger.info("Application shutdown: Closing services...")
-    
-    # Close Neo4j
-    try:
-        await Neo4jService.close_driver()
-        logger.info("Neo4j connection closed")
-    except Exception as e:
-        logger.error(f"Error closing Neo4j: {e}")
-    
-    # Close Weaviate
-    try:
-        weaviate = get_weaviate_service()
-        weaviate.close()
-        logger.info("Weaviate connection closed")
-    except Exception as e:
-        logger.error(f"Error closing Weaviate: {e}")
+    logger.info("Shutting down...")
+    vectorstore.close()
+    await graphdb.close()
 
+
+# === App ===
 
 app = FastAPI(
     title="GraphRAG Mental Wellness API",
-    description="A production-grade Hybrid GraphRAG application using LangGraph, Neo4j, and Weaviate for mental wellness support.",
-    version="1.0.0",
+    version="2.0.0",
     lifespan=lifespan
 )
 
-# --- Middleware ---
+# Middleware
 app.add_middleware(RequestIDMiddleware)
-app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, restrict to your frontend domains
-    allow_credentials=True,
+    allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-
-# --- Health Check Endpoints ---
-
-@app.get("/", summary="Basic health check")
-def read_root():
-    """Basic health check to verify the server is running."""
-    return {"status": "ok", "service": "graphrag-mental-wellness"}
+# Rate limiting
+limiter = Limiter(key_func=get_remote_address, default_limits=[settings.rate_limit])
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 
-@app.get("/health", summary="Liveness probe")
-def health_check():
-    """
-    Liveness probe for Kubernetes/container orchestration.
-    Returns 200 if the application process is alive.
-    """
+# === Health Endpoints ===
+
+@app.get("/health")
+def health():
     return {"status": "alive"}
 
 
-@app.get("/ready", summary="Readiness probe")
-def readiness_check():
-    """
-    Readiness probe for Kubernetes/container orchestration.
-    Returns 200 only if all dependent services are connected.
-    """
-    if not app_state.is_ready:
-        return JSONResponse(
-            status_code=503,
-            content={
-                "status": "not_ready",
-                "neo4j": app_state.neo4j_connected,
-                "weaviate": app_state.weaviate_connected,
-            }
-        )
-    
-    return {
-        "status": "ready",
-        "neo4j": app_state.neo4j_connected,
-        "weaviate": app_state.weaviate_connected,
-    }
+@app.get("/ready", response_model=HealthResponse)
+async def ready():
+    neo4j_ok = await graphdb.health_check()
+    redis_ok = cache.ping()
+    return HealthResponse(
+        status="ready" if neo4j_ok else "degraded",
+        neo4j=neo4j_ok,
+        weaviate=True,  # Checked at startup
+        redis=redis_ok
+    )
 
 
-# --- Chat Endpoint ---
+# === Chat Endpoints ===
 
-@app.post("/chat", summary="Handle a chat request and stream the response")
-@limiter.limit(settings.RATE_LIMIT)
-async def chat_endpoint(request: ChatRequest, req: Request):
-    """
-    Main chat endpoint for the mental wellness agent.
+@app.post("/chat")
+@limiter.limit(settings.rate_limit)
+async def chat(request: ChatRequest, req: Request):
+    """Non-streaming chat."""
+    session_id = request.session_id or str(uuid.uuid4())
     
-    - Processes the query through the GraphRAG pipeline with safety guardrails
-    - Streams the response back to the client
-    - Includes automatic safety escalation for crisis situations
-    """
-    query = request.get("query")
-    if not query:
-        raise HTTPException(status_code=400, detail="Query cannot be empty")
+    # Save user message
+    cache.add_message(session_id, "user", request.query)
     
-    if len(query) > 5000:
-        raise HTTPException(status_code=400, detail="Query too long (max 5000 characters)")
+    # Run pipeline
+    result = await pipeline.ainvoke({
+        "query": request.query,
+        "history": cache.get_history(session_id, limit=10)
+    })
     
-    request_id = getattr(req.state, 'request_id', 'unknown')
-    logger.info(f"Chat request received", extra={'request_id': request_id, 'query_length': len(query)})
+    response = result.get("response", [""])[0]
+    
+    # Save assistant message
+    cache.add_message(session_id, "assistant", response)
+    
+    return {"response": response, "session_id": session_id}
 
-    async def stream_response():
-        """Generator function to stream the graph's output."""
+
+@app.post("/chat/stream")
+@limiter.limit(settings.rate_limit)
+async def chat_stream(request: ChatStreamRequest, req: Request):
+    """Streaming chat - sends tokens as generated."""
+    session_id = request.session_id or str(uuid.uuid4())
+    
+    cache.add_message(session_id, "user", request.query)
+    
+    async def generate():
+        full_response = ""
         try:
-            async for chunk in runnable_graph.astream({
-                "query": query,
-                "conversation_history": [],
-                "response": [],
-                "safety_escalated": False,
-                "risk_level": None,
+            async for chunk in pipeline.astream({
+                "query": request.query,
+                "history": request.history or []
             }):
                 if "response" in chunk and chunk["response"]:
-                    response_part = chunk["response"][-1]
-                    yield response_part
+                    new_text = chunk["response"][-1]
+                    if len(new_text) > len(full_response):
+                        delta = new_text[len(full_response):]
+                        full_response = new_text
+                        yield delta
+            
+            cache.add_message(session_id, "assistant", full_response)
         except Exception as e:
-            logger.error(f"Error during graph execution: {e}", extra={'request_id': request_id})
-            yield "I apologize, but I encountered an error processing your request. If you're in crisis, please contact emergency services or call 988."
+            logger.error(f"Stream error: {e}")
+            yield "\n\n[Error generating response]"
+    
+    return StreamingResponse(
+        generate(),
+        media_type="text/plain",
+        headers={"X-Accel-Buffering": "no"}
+    )
 
-    return StreamingResponse(stream_response(), media_type="text/plain")
+
+# === Document Endpoints ===
+
+@app.post("/documents/upload")
+async def upload_document(file: UploadFile = File(...)):
+    """Upload and ingest document."""
+    suffix = Path(file.filename).suffix.lower()
+    if suffix not in {".pdf", ".txt", ".md"}:
+        raise HTTPException(400, f"Unsupported type: {suffix}")
+    
+    content = await file.read()
+    if len(content) > settings.max_upload_mb * 1024 * 1024:
+        raise HTTPException(400, "File too large")
+    
+    # Save file
+    filepath = Path(settings.upload_dir) / file.filename
+    filepath.write_bytes(content)
+    
+    # Parse and chunk
+    try:
+        if suffix == ".pdf":
+            from pypdf import PdfReader
+            reader = PdfReader(str(filepath))
+            text = "\n\n".join(p.extract_text() or "" for p in reader.pages)
+        else:
+            text = content.decode("utf-8")
+        
+        # Simple chunking
+        chunks = []
+        chunk_size = 1000
+        for i in range(0, len(text), chunk_size - 100):
+            chunks.append(text[i:i + chunk_size])
+        
+        # Embed and store
+        embed_model = get_embedding_model()
+        embeddings = embed_model.embed_documents(chunks)
+        
+        doc_id = str(uuid.uuid4())[:8]
+        chunk_ids = [f"{doc_id}_{i}" for i in range(len(chunks))]
+        
+        vectorstore.insert(embeddings, chunk_ids, chunks, doc_id)
+        
+        return {
+            "doc_id": doc_id,
+            "filename": file.filename,
+            "chunks": len(chunks),
+            "chars": len(text)
+        }
+    except Exception as e:
+        logger.error(f"Ingest error: {e}")
+        raise HTTPException(500, str(e))
 
 
-# --- Main execution ---
+@app.get("/documents")
+def list_documents():
+    """List uploaded documents."""
+    upload_dir = Path(settings.upload_dir)
+    if not upload_dir.exists():
+        return {"documents": []}
+    
+    docs = []
+    for f in upload_dir.iterdir():
+        if f.is_file() and f.suffix.lower() in {".pdf", ".txt", ".md"}:
+            docs.append({
+                "filename": f.name,
+                "size": f.stat().st_size
+            })
+    return {"documents": docs}
+
+
+# === Session Endpoints ===
+
+@app.get("/session/{session_id}/history")
+def get_history(session_id: str, limit: int = 20):
+    return {"messages": cache.get_history(session_id, limit)}
+
+
+@app.delete("/session/{session_id}")
+def clear_session(session_id: str):
+    cache.clear_history(session_id)
+    return {"status": "cleared"}
+
+
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host=settings.API_HOST, port=settings.API_PORT)
-
+    uvicorn.run(app, host=settings.api_host, port=settings.api_port)

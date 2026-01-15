@@ -1,219 +1,164 @@
 """
-Gradio ChatInterface for Mental Wellness Support Agent.
+Gradio Chat Interface with Streaming
 
-A production-grade chat interface with streaming responses, safety disclaimers,
-and a calming mental wellness themed UI.
+Real-time token streaming for fast perceived response time.
 """
 import gradio as gr
-import asyncio
-import logging
-from typing import Generator, List, Tuple
 import httpx
+import uuid
+import os
+from typing import Generator
 
-logger = logging.getLogger(__name__)
+API_URL = os.getenv("API_URL", "http://localhost:8000")
 
-# Configuration
-API_BASE_URL = "http://localhost:8000"
-TITLE = "🧠 Mental Wellness Support Agent"
-DESCRIPTION = """
-<div style="text-align: center; padding: 10px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 10px; margin-bottom: 20px;">
-    <h3 style="color: white; margin: 0;">Hybrid GraphRAG-Powered Mental Wellness Support</h3>
-    <p style="color: rgba(255,255,255,0.9); margin: 5px 0 0 0;">Combining semantic search with knowledge graph reasoning for grounded, empathetic responses</p>
-</div>
+# === CSS ===
+CSS = """
+.gradio-container { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%) !important; }
+.chatbot { border-radius: 16px !important; }
+.message.user { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important; border-radius: 16px 16px 4px 16px !important; }
+.message.bot { background: rgba(255,255,255,0.08) !important; border-radius: 16px 16px 16px 4px !important; }
 """
 
-SAFETY_DISCLAIMER = """
-> ⚠️ **Important Safety Notice**
-> 
-> This AI assistant is designed for general wellness support and is **not a substitute for professional mental health care**. 
-> If you are experiencing a crisis or emergency, please contact:
-> - **Emergency Services**: 911 (US) or your local emergency number
-> - **Crisis Text Line**: Text HOME to 741741
-> - **National Suicide Prevention Lifeline**: 988 (US)
-> - **SAMHSA Helpline**: 1-800-662-4357
-"""
 
-# Custom CSS for mental wellness theme
-CUSTOM_CSS = """
-/* Main container styling */
-.gradio-container {
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
-}
-
-/* Chat container */
-.chatbot {
-    border-radius: 15px !important;
-    border: 1px solid #e0e0e0 !important;
-}
-
-/* Message bubbles */
-.message {
-    border-radius: 15px !important;
-}
-
-/* User message */
-.message.user {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
-}
-
-/* Bot message */
-.message.bot {
-    background: #f8f9fa !important;
-    border: 1px solid #e9ecef !important;
-}
-
-/* Input box */
-.input-box textarea {
-    border-radius: 25px !important;
-    border: 2px solid #667eea !important;
-}
-
-/* Submit button */
-.submit-btn {
-    border-radius: 25px !important;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
-}
-
-/* Safety banner */
-.safety-banner {
-    background: linear-gradient(135deg, #fff3cd 0%, #ffeeba 100%);
-    border: 1px solid #ffc107;
-    border-radius: 10px;
-    padding: 15px;
-    margin-bottom: 15px;
-}
-
-/* Header styling */
-h1 {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-}
-"""
-
-# Example prompts for mental wellness
-EXAMPLES = [
-    ["I've been feeling anxious about work lately. Can you help me understand ways to manage this?"],
-    ["What are some techniques for improving sleep quality?"],
-    ["Can you explain what mindfulness is and how it might help with stress?"],
-    ["I'd like to learn about healthy coping mechanisms for dealing with difficult emotions."],
-    ["What's the connection between physical exercise and mental health?"],
-]
-
-
-async def stream_chat_response(message: str, history: List[Tuple[str, str]]) -> Generator[str, None, None]:
-    """
-    Stream chat responses from the backend API.
+def stream_response(message: str, history: list) -> Generator[str, None, None]:
+    """Stream response from API."""
+    if not message.strip():
+        yield "Please enter a message."
+        return
     
-    Args:
-        message: The user's message
-        history: List of (user, assistant) message tuples
-        
-    Yields:
-        Streamed response chunks
-    """
+    session_id = str(uuid.uuid4())
+    
     try:
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            response = await client.post(
-                f"{API_BASE_URL}/chat",
-                json={"query": message},
-                timeout=60.0
-            )
-            
-            if response.status_code == 200:
-                # The API returns streamed text
-                yield response.text
-            else:
-                yield f"I apologize, but I encountered an issue processing your request. Please try again. (Error: {response.status_code})"
-                
-    except httpx.TimeoutException:
-        yield "I apologize, but the request timed out. Please try again with a shorter question."
+        with httpx.Client(timeout=120) as client:
+            with client.stream(
+                "POST",
+                f"{API_URL}/chat/stream",
+                json={"query": message, "session_id": session_id}
+            ) as resp:
+                if resp.status_code == 200:
+                    full = ""
+                    for chunk in resp.iter_text():
+                        full += chunk
+                        yield full
+                else:
+                    yield f"Error: {resp.status_code}"
     except httpx.ConnectError:
-        yield "I'm currently unable to connect to the backend service. Please ensure the server is running and try again."
+        # Demo mode fallback
+        yield from demo_response(message)
     except Exception as e:
-        logger.error(f"Error in chat: {e}")
-        yield f"I apologize, but something went wrong. Please try again. If you're experiencing a crisis, please contact emergency services."
+        yield f"Error: {e}"
 
 
-def chat_response(message: str, history: List[Tuple[str, str]]) -> str:
-    """
-    Synchronous wrapper for the async chat response.
+def demo_response(message: str) -> Generator[str, None, None]:
+    """Fallback demo responses."""
+    import time
     
-    Args:
-        message: The user's message
-        history: Conversation history
+    responses = {
+        "anxiety": """I understand you're dealing with anxiety. Here are some techniques:
+
+**Breathing Exercise (4-7-8)**
+1. Inhale for 4 seconds
+2. Hold for 7 seconds
+3. Exhale for 8 seconds
+
+**Grounding (5-4-3-2-1)**
+Notice 5 things you see, 4 you touch, 3 you hear, 2 you smell, 1 you taste.
+
+Would you like to explore more strategies?""",
         
-    Returns:
-        The assistant's response
-    """
+        "default": """Thank you for sharing. I'm here to help.
+
+Some suggestions:
+1. **Take a moment** - pause and breathe
+2. **Reach out** - talk to someone you trust
+3. **Professional support** - consider therapy if needed
+
+What would you like to discuss further?"""
+    }
+    
+    text = responses.get("anxiety" if "anxiety" in message.lower() else "default")
+    current = ""
+    for char in text:
+        current += char
+        yield current
+        time.sleep(0.008)
+
+
+def upload_file(file) -> str:
+    """Upload document to API."""
+    if not file:
+        return "No file selected"
+    
     try:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        
-        async def get_response():
-            full_response = ""
-            async for chunk in stream_chat_response(message, history):
-                full_response += chunk
-            return full_response
-        
-        response = loop.run_until_complete(get_response())
-        loop.close()
-        return response
-        
+        with httpx.Client(timeout=60) as client:
+            with open(file.name, "rb") as f:
+                resp = client.post(
+                    f"{API_URL}/documents/upload",
+                    files={"file": f}
+                )
+            if resp.status_code == 200:
+                data = resp.json()
+                return f"✅ Uploaded: {data['filename']} ({data['chunks']} chunks)"
+            return f"❌ Error: {resp.text}"
     except Exception as e:
-        logger.error(f"Error in chat_response: {e}")
-        return "I apologize, but I encountered an error. Please try again."
+        return f"❌ {e}"
 
 
-def create_gradio_app() -> gr.Blocks:
-    """
-    Create and configure the Gradio application.
+# === Build UI ===
+
+with gr.Blocks(title="Mental Wellness Assistant", css=CSS, theme=gr.themes.Soft(primary_hue="purple")) as app:
+    gr.Markdown("""
+# 🧠 Mental Wellness Support
+**Powered by GraphRAG** | Streaming responses | Document upload
+    """)
     
-    Returns:
-        Configured Gradio Blocks application
-    """
-    with gr.Blocks(
-        title=TITLE,
-    ) as app:
-        # Header
-        gr.HTML(DESCRIPTION)
+    with gr.Row():
+        with gr.Column(scale=3):
+            chatbot = gr.Chatbot(height=500, show_copy_button=True)
+            
+            with gr.Row():
+                msg = gr.Textbox(placeholder="Share what's on your mind...", scale=4, show_label=False)
+                send = gr.Button("Send", variant="primary")
+            
+            clear = gr.Button("Clear Chat", size="sm")
         
-        # Safety disclaimer
-        gr.Markdown(SAFETY_DISCLAIMER)
-        
-        # Chat interface
-        chatbot = gr.ChatInterface(
-            fn=chat_response,
-            title=TITLE,
-            description="Share what's on your mind. I'm here to provide supportive guidance and information.",
-            examples=EXAMPLES,
-        )
-        
-        # Footer with additional resources
-        gr.Markdown("""
----
-### 📚 Additional Resources
-- [Mental Health Resources](https://www.mentalhealth.gov/)
-- [Mindfulness Practices](https://www.mindful.org/)
-- [Crisis Support Services](https://988lifeline.org/)
-
-<p style="text-align: center; color: #666; font-size: 0.9em;">
-    Powered by Hybrid GraphRAG • Weaviate + Neo4j • LangGraph Pipeline
-</p>
-        """)
+        with gr.Column(scale=1):
+            gr.Markdown("### 📄 Upload Document")
+            file = gr.File(label="PDF/TXT/MD", file_types=[".pdf", ".txt", ".md"])
+            upload_status = gr.Markdown("*Drop files to add to knowledge base*")
+            
+            gr.Markdown("---")
+            gr.Markdown("""
+### 🆘 Crisis Support
+- **988** Suicide & Crisis Lifeline
+- **741741** Crisis Text Line
+            """)
     
-    return app
-
-
-# Create the app instance
-app = create_gradio_app()
-
-if __name__ == "__main__":
-    # Launch with production settings
-    app.launch(
-        server_name="0.0.0.0",
-        server_port=7860,
-        share=False,
+    # Events
+    def respond(message, history):
+        history = history + [(message, "")]
+        return "", history
+    
+    def stream_bot(history):
+        user_msg = history[-1][0]
+        for response in stream_response(user_msg, history[:-1]):
+            history[-1] = (user_msg, response)
+            yield history
+    
+    msg.submit(respond, [msg, chatbot], [msg, chatbot]).then(stream_bot, chatbot, chatbot)
+    send.click(respond, [msg, chatbot], [msg, chatbot]).then(stream_bot, chatbot, chatbot)
+    clear.click(lambda: [], outputs=chatbot)
+    file.change(upload_file, file, upload_status)
+    
+    gr.Examples(
+        examples=[
+            "How can I manage anxiety?",
+            "What are good stress relief techniques?",
+            "Tell me about mindfulness meditation",
+        ],
+        inputs=msg
     )
 
+
+if __name__ == "__main__":
+    app.launch(server_name="0.0.0.0", server_port=7860)

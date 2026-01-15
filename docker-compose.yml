@@ -1,61 +1,64 @@
 services:
+  # === API Server ===
   app:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    build: .
     ports:
       - "8000:8000"
-    env_file:
-      - .env
+    env_file: .env
     environment:
       - APP_MODE=api
     depends_on:
-      - neo4j
-      - weaviate
-      - redis
+      neo4j:
+        condition: service_healthy
+      weaviate:
+        condition: service_started
+      redis:
+        condition: service_healthy
     volumes:
-      - .:/home/appuser/app
+      - uploads:/app/uploads
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:8000/health" ]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 10s
+      start_period: 15s
+    deploy:
+      resources:
+        limits:
+          memory: 2G
 
+  # === Gradio UI ===
   gradio:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    build: .
+    command: python gradio_app.py
     ports:
       - "7860:7860"
-    env_file:
-      - .env
+    env_file: .env
     environment:
       - APP_MODE=gradio
+      - API_URL=http://app:8000
     depends_on:
-      - app
-    volumes:
-      - .:/home/appuser/app
+      app:
+        condition: service_healthy
 
-  nginx:
-    image: nginx:1.25-alpine
-    ports:
-      - "80:80"
-    volumes:
-      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf
-    depends_on:
-      - app
-
+  # === Neo4j Graph Database ===
   neo4j:
-    image: neo4j:5
+    image: neo4j:5-community
     ports:
       - "7474:7474"
       - "7687:7687"
     environment:
-      - NEO4J_AUTH=neo4j/password # DO NOT use this in production
+      - NEO4J_AUTH=neo4j/password
+      - NEO4J_PLUGINS=["apoc"]
     volumes:
       - neo4j_data:/data
+    healthcheck:
+      test: [ "CMD", "wget", "-q", "--spider", "http://localhost:7474" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
+  # === Weaviate Vector Store ===
   weaviate:
     image: cr.weaviate.io/semitechnologies/weaviate:1.27.0
     ports:
@@ -63,33 +66,29 @@ services:
       - "50051:50051"
     environment:
       QUERY_DEFAULTS_LIMIT: 25
-      AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: 'true'
-      PERSISTENCE_DATA_PATH: '/var/lib/weaviate'
-      DEFAULT_VECTORIZER_MODULE: 'none'
-      CLUSTER_HOSTNAME: 'node1'
+      AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: "true"
+      PERSISTENCE_DATA_PATH: "/var/lib/weaviate"
+      DEFAULT_VECTORIZER_MODULE: "none"
+      CLUSTER_HOSTNAME: "node1"
     volumes:
       - weaviate_data:/var/lib/weaviate
 
+  # === Redis Cache & Sessions ===
   redis:
     image: redis:7-alpine
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
     ports:
       - "6379:6379"
-
-  worker:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    command: celery -A graph_rag.celery worker --loglevel=info
-    env_file:
-      - .env
-    depends_on:
-      - redis
-      - app
     volumes:
-      - .:/home/appuser/app
+      - redis_data:/data
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
 
 volumes:
   neo4j_data:
   weaviate_data:
-
-
+  redis_data:
+  uploads:
