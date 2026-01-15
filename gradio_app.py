@@ -7,10 +7,58 @@ from typing import Generator
 
 API_URL = os.getenv("API_URL", "http://localhost:8000")
 
+# Custom CSS for ChatGPT-like Glassmorphism look
+CSS = """
+body { background-color: #f7f7f8; }
+.gradio-container { max-width: 900px !important; margin: auto; }
+#chatbot-component { 
+    height: 65vh !important; 
+    border: none !important; 
+    background: transparent !important;
+}
+.message { 
+    padding: 16px !important; 
+    border-radius: 12px !important; 
+    margin-bottom: 12px !important;
+    font-family: 'Inter', sans-serif;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+.message.user { 
+    background-color: #ffffff !important; 
+    border: 1px solid #e5e5e5;
+    color: #1a1a1a;
+}
+.message.bot { 
+    background-color: #f0fdf4 !important; /* Soft Green tint for wellness */
+    border: 1px solid #dcfce7;
+    color: #1a1a1a;
+}
+textarea {
+    border-radius: 12px !important;
+    border: 1px solid #e5e5e5 !important;
+    background: white !important;
+    padding: 12px !important;
+    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+}
+.suggestion-btn {
+    background: white;
+    border: 1px solid #e5e5e5;
+    border-radius: 8px;
+    padding: 8px 12px;
+    color: #666;
+    font-size: 0.9em;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.suggestion-btn:hover {
+    background: #f3f4f6;
+    border-color: #d1d5db;
+}
+"""
 
 def stream_response(message: str, history: list) -> Generator[str, None, None]:
     if not message.strip():
-        yield "Please enter a message."
+        yield "Please share what's on your mind."
         return
     
     try:
@@ -32,10 +80,11 @@ def stream_response(message: str, history: list) -> Generator[str, None, None]:
 def demo_response(message: str) -> Generator[str, None, None]:
     import time
     responses = {
-        "anxiety": "I understand you're dealing with anxiety. Here are some techniques:\n\n**Breathing (4-7-8)**: Inhale 4s, hold 7s, exhale 8s.\n\n**Grounding**: Notice 5 things you see, 4 you touch, 3 you hear.",
-        "default": "Thank you for sharing. I'm here to help.\n\n1. Take a moment to breathe\n2. Talk to someone you trust\n3. Consider professional support if needed"
+        "anxiety": "I hear that you are feeling anxious. Let's try to ground ourselves:\n\n**1. Breathing Exercise (4-7-8)**\n- Inhale for 4 seconds.\n- Hold for 7 seconds.\n- Exhale for 8 seconds.\n\n**2. Grounding**\n- Notice 5 things you see, 4 you can touch, 3 you hear.\n\nWould you like to talk more about what's worrying you?",
+        "default": "I am here to listen without judgment.\n\nIf you are feeling overwhelmed, remember:\n1. **Breathe** - Deep breaths calm the mind.\n2. **Connect** - Talk to a someone you trust.\n3. **Professional Help** - Seeking therapy is a sign of strength.\n\nHow are you feeling right now?"
     }
-    text = responses.get("anxiety" if "anxiety" in message.lower() else "default")
+    key = "anxiety" if any(x in message.lower() for x in ["anxious", "worry", "stress", "tension"]) else "default"
+    text = responses[key]
     current = ""
     for char in text:
         current += char
@@ -58,23 +107,53 @@ def upload_file(file) -> str:
         return f"Error: {e}"
 
 
-with gr.Blocks(title="Mental Wellness Assistant") as app:
-    gr.Markdown("# Mental Wellness Assistant\n**GraphRAG-powered support with streaming responses**")
+with gr.Blocks(title="Wellness Companion", css=CSS, theme=gr.themes.Soft(primary_hue="emerald", radius_size="lg")) as app:
     
-    with gr.Row():
-        with gr.Column(scale=3):
-            chatbot = gr.Chatbot(height=500)
-            with gr.Row():
-                msg = gr.Textbox(placeholder="Share what's on your mind...", scale=4, show_label=False)
-                send = gr.Button("Send", variant="primary")
-            clear = gr.Button("Clear", size="sm")
+    with gr.Column(elem_id="main-container"):
+        gr.Markdown("""
+        <div style="text-align: center; margin-bottom: 20px;">
+            <h1 style="font-size: 2.5em; margin-bottom: 0.2em;">Wellness Companion</h1>
+            <p style="color: #666; font-size: 1.1em;">Your safe space for mental well-being.</p>
+        </div>
+        """)
         
-        with gr.Column(scale=1):
-            gr.Markdown("### Upload Document")
-            file = gr.File(label="PDF/TXT/MD", file_types=[".pdf", ".txt", ".md"])
-            upload_status = gr.Markdown("")
-            gr.Markdown("---\n### Crisis Support\n**988** Suicide & Crisis Lifeline")
+        chatbot = gr.Chatbot(
+            elem_id="chatbot-component", 
+            show_label=False, 
+            avatar_images=(None, "https://api.dicebear.com/7.x/avataaars/svg?seed=Felix&backgroundColor=b6e3f4"),
+            layout="bubble"
+        )
+        
+        with gr.Row(variant="panel"):
+            msg = gr.Textbox(
+                placeholder="How are you feeling today?", 
+                scale=6, 
+                show_label=False,
+                autofocus=True,
+                container=False
+            )
+            send = gr.Button("➤", variant="primary", scale=1, min_width=50)
+        
+        with gr.Row(variant="compact"):
+            gr.Examples(
+                examples=["I feel very stressed about exams.", "How do I manage anger?", "Tips for better sleep."],
+                inputs=msg,
+                label="Suggestions"
+            )
+        
+        with gr.Accordion("Features & Upload", open=False):
+            with gr.Row():
+                file = gr.File(label="Upload Medical Reports / Journals", file_types=[".pdf", ".txt", ".md"])
+                upload_status = gr.Markdown("")
+        
+        gr.Markdown("""
+        <div style="text-align: center; margin-top: 20px; font-size: 0.8em; color: #888;">
+            <p><strong>Emergency Support (India):</strong> Vandrevala Foundation: 1860-266-2345 | KIRAN: 1800-599-0019</p>
+            <p>AI can make mistakes. Please verify important information.</p>
+        </div>
+        """)
     
+    # Logic
     def respond(message, history):
         history = history + [(message, "")]
         return "", history
@@ -84,13 +163,10 @@ with gr.Blocks(title="Mental Wellness Assistant") as app:
         for response in stream_response(user_msg, history[:-1]):
             history[-1] = (user_msg, response)
             yield history
-    
+
     msg.submit(respond, [msg, chatbot], [msg, chatbot]).then(stream_bot, chatbot, chatbot)
     send.click(respond, [msg, chatbot], [msg, chatbot]).then(stream_bot, chatbot, chatbot)
-    clear.click(lambda: [], outputs=chatbot)
     file.change(upload_file, file, upload_status)
-    
-    gr.Examples(examples=["How can I manage anxiety?", "Tips for stress relief", "What is mindfulness?"], inputs=msg)
 
 
 if __name__ == "__main__":

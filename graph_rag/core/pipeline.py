@@ -19,7 +19,7 @@ async def safety_check(state: PipelineState) -> PipelineState:
     critical = ["suicide", "kill myself", "end my life", "want to die"]
     if any(kw in query for kw in critical):
         return {**state, "safety_triggered": True, "response": [
-            "I'm concerned about what you've shared. Please contact 988 Suicide & Crisis Lifeline immediately."
+            "I'm deeply concerned about what you've shared. Your life has value.\n\nPlease reach out for help immediately:\n- **Vandrevala Foundation**: 1860-266-2345 (24x7)\n- **KIRAN Helpline**: 1800-599-0019\n- **iCall**: 91529-87821\n\nYou are not alone."
         ]}
     return {**state, "safety_triggered": False}
 
@@ -42,7 +42,7 @@ async def retrieve_context(state: PipelineState) -> PipelineState:
                 context_parts.append(r["content"])
                 sources.append(r.get("chunk_id", ""))
         
-        topics = [t for t in ["anxiety", "depression", "stress", "sleep", "mindfulness", "meditation", "breathing", "panic", "therapy"] if t in query.lower()]
+        topics = [t for t in ["anxiety", "depression", "stress", "sleep", "mindfulness", "yoga", "family", "exam", "career", "parents"] if t in query.lower()]
         for topic in (topics or ["wellness"])[:3]:
             for e in (await graphdb.get_related_entities(topic))[:5]:
                 context_parts.append(f"{e.get('source')} → {e.get('target')}")
@@ -62,8 +62,19 @@ async def generate_response(state: PipelineState) -> PipelineState:
     if cached:
         return {**state, "response": [cached]}
     
+    system_prompt = """You are a compassionate mental wellness companion.
+    
+Guidelines:
+- Be empathetic, professional, and respectful.
+- Provide evidence-based guidance and holistic suggestions (e.g., mindfulness, breathing exercises).
+- Suggest professional help for serious concerns.
+- Never diagnose.
+
+Context:
+{context}"""
+
     prompt = ChatPromptTemplate.from_messages([
-        ("system", "You are a compassionate mental wellness assistant. Be empathetic, provide evidence-based guidance, suggest professional help for serious concerns. Never diagnose.\n\nContext:\n{context}"),
+        ("system", system_prompt),
         ("human", "{query}")
     ])
     
@@ -78,7 +89,7 @@ async def generate_response(state: PipelineState) -> PipelineState:
         return {**state, "response": [response]}
     except Exception as e:
         logger.error(f"Generation: {e}")
-        return {**state, "response": ["I apologize, I'm having trouble. If you need support, call 988."]}
+        return {**state, "response": ["I apologize, I'm having trouble connecting. If you are in distress, please call the KIRAN Helpline at 1800-599-0019."]}
 
 
 def should_end_early(state: PipelineState) -> str:

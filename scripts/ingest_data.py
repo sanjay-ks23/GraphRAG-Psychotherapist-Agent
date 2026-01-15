@@ -1,71 +1,63 @@
+"""
+Data Ingestion Script
+
+Ingests seed data from data/seed_kg.csv into Neo4j and Weaviate.
+"""
 import logging
 import asyncio
 import pandas as pd
-from graph_rag.services.llm_service import get_embedding_model
-from graph_rag.services.weaviate_service import get_weaviate_service
-from graph_rag.services.neo4j_service import Neo4jService
+from graph_rag.services import get_embedding_model, vectorstore, graphdb
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 async def ingest_data():
-    """
-    Main function to ingest data from a CSV file into Neo4j and Weaviate.
-    """
-    logger.info("Starting data ingestion process...")
+    logger.info("Starting ingestion...")
 
-    # --- 1. Load Data ---
+    # 1. Load Data
     try:
         df = pd.read_csv("data/seed_kg.csv")
-        logger.info(f"Loaded {len(df)} rows from data/seed_kg.csv")
+        logger.info(f"Loaded {len(df)} rows")
     except FileNotFoundError:
-        logger.error("data/seed_kg.csv not found. Please ensure the seed data is in the 'data' directory.")
+        logger.error("data/seed_kg.csv not found")
         return
 
-    # --- 2. Initialize Services ---
-    embedding_model = get_embedding_model()
-    weaviate_service = get_weaviate_service()
+    # 2. Ingest into Neo4j
+    logger.info("Ingesting to Neo4j...")
+    await graphdb.connect()
     
-    # --- 3. Ingest into Neo4j ---
-    logger.info("Ingesting data into Neo4j...")
-    # This is a simple example. A more robust implementation would handle
-    # different node labels, properties, and relationships dynamically.
     for _, row in df.iterrows():
-        # Create a simple graph from the CSV (assuming 'source', 'target', 'relationship' columns)
-        cypher_query = """
+        query = """
         MERGE (s:Entity {name: $source})
         MERGE (t:Entity {name: $target})
         MERGE (s)-[:RELATIONSHIP {type: $rel}]->(t)
         """
-        await Neo4jService.execute_query(
-            cypher_query,
-            parameters={"source": row["source"], "target": row["target"], "rel": row["relationship"]}
+        await graphdb.execute(
+            query, 
+            {"source": row["source"], "target": row["target"], "rel": row["relationship"]}
         )
-    logger.info("Finished ingesting data into Neo4j.")
-
-    # --- 4. Ingest into Weaviate ---
-    logger.info("Ingesting data into Weaviate...")
-    # We will create embeddings for the 'source' nodes as an example
-    texts_to_embed = df["source"].unique().tolist()
     
-    if texts_to_embed:
-        embeddings = embedding_model.embed_documents(texts_to_embed)
-        
-        # The chunk_id can be the text itself or a more stable identifier
-        chunk_ids = texts_to_embed
-        
-        weaviate_service.insert(vectors=embeddings, chunk_ids=chunk_ids, contents=texts_to_embed)
-        logger.info(f"Successfully inserted {len(embeddings)} embeddings into Weaviate.")
-    else:
-        logger.warning("No unique texts to embed for Weaviate.")
+    logger.info("Neo4j ingestion complete")
 
-    logger.info("Data ingestion process completed.")
+    # 3. Ingest into Weaviate
+    logger.info("Ingesting to Weaviate...")
+    vectorstore.connect()
+    
+    # Embed unique entities
+    entities = list(set(df["source"].tolist() + df["target"].tolist()))
+    if entities:
+        embeddings = get_embedding_model().embed_documents(entities)
+        vectorstore.insert(
+            vectors=embeddings,
+            chunk_ids=entities,
+            contents=entities,
+            doc_id="seed_data"
+        )
+        logger.info(f"Inserted {len(entities)} entities to Weaviate")
+    
+    await graphdb.close()
+    vectorstore.close()
+    logger.info("Done!")
 
 if __name__ == "__main__":
-    # Ensure the Neo4j driver is initialized before running
-    async def main():
-        await Neo4jService.get_driver()
-        await ingest_data()
-        await Neo4jService.close_driver()
-
-    asyncio.run(main())
+    asyncio.run(ingest_data())

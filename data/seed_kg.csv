@@ -1,5 +1,21 @@
-node_id,node_type,text,language
-1,Emotion,anxiety,en
-2,Emotion,sadness,en
-3,CopingStrategy,deep_breathing,en
-4,TriggerEvent,exam_stress,en
+source,relationship,target
+Anxiety,MANAGED_BY,Pranayama
+Anxiety,MANAGED_BY,Belly Breathing
+Stress,CAUSED_BY,Academic Pressure
+Stress,CAUSED_BY,Family Expectations
+Stress,MANAGED_BY,Yoga Nidra
+Depression,MANAGED_BY,Professional Therapy
+Panic Attack,MANAGED_BY,Grounding 5-4-3-2-1
+Sleep Issues,MANAGED_BY,Warm Milk (Haldi Doodh)
+Sleep Issues,MANAGED_BY,Meditation
+Exam Stress,MANAGED_BY,Time Management
+Career Anxiety,MANAGED_BY,Mentorship
+Suicidal Thoughts,CONTACT,Vandrevala Foundation
+Suicidal Thoughts,CONTACT,KIRAN Helpline
+Mental Health,SUPPORTED_BY,Family Support
+Mental Health,SUPPORTED_BY,Community
+Ayurveda,PROMOTES,Holistic Wellness
+Yoga,PROMOTES,Mental Clarity
+Mindfulness,REDUCES,Overthinking
+Stigma,HINDERS,Seeking Help
+Counselling,HELPS_WITH,Relationship Issues
